@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><title>AI Pendulum Analysis</title>
+<style>
+body{font-family:Arial;margin:0;background:#eef4ff;color:#14213d}header{background:#14213d;color:white;text-align:center;padding:18px}
+main{max-width:1000px;margin:18px auto;padding:12px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+.card{background:white;border-radius:15px;padding:16px;box-shadow:0 3px 12px #0002}video,canvas{width:100%;border-radius:10px;background:#111}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}.stat{text-align:center;background:#f3f6fa;padding:12px;border-radius:10px}
+.big{font-size:24px;font-weight:bold}button{padding:10px 14px;margin:5px 2px;border:0;border-radius:9px;background:#14213d;color:white}
+input{box-sizing:border-box;width:100%;padding:8px;border-radius:7px;border:1px solid #aaa}.note{font-size:13px;color:#555}
+@media(max-width:750px){.grid{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>AI Pendulum Analysis</h1><div>Predict → Experiment → AI Analysis → Compare</div></header>
+<main><div class="grid"><section class="card"><h2>📹 Camera</h2><video id="v" autoplay playsinline muted></video>
+<canvas id="c" width="800" height="500"></canvas><button id="cam">Start Camera</button><button id="go">Start Analysis</button><button id="stop">Stop</button>
+<p class="note">Use a bright/yellow pendulum bob against a plain background. This is an exhibition demo, not a precision laboratory instrument.</p></section>
+<section class="card"><h2>📊 Dashboard</h2><div class="stats">
+<div class="stat">Current Angle<div class="big" id="a">0°</div></div>
+<div class="stat">Maximum Angle<div class="big" id="m">0°</div></div>
+<div class="stat">Oscillations<div class="big" id="o">0</div></div>
+<div class="stat">Last Period<div class="big" id="p">—</div></div>
+<div class="stat">Average Period<div class="big" id="av">—</div></div>
+<div class="stat">Time<div class="big" id="t">0.0 s</div></div></div>
+<hr><h3>🎯 Visitor Prediction</h3><input id="pred" type="number" step=".01" placeholder="Predicted period in seconds">
+<button id="score">Compare Prediction</button><p id="res" class="note"></p>
+<hr><h3>⚙️ Experiment</h3><label>Length (cm)</label><input type="number" value="30">
+<label>Starting angle (°)</label><input type="number" value="20"></section></div>
+<section class="card" style="margin-top:16px"><h2>🕐 Pendulum Angle Scale</h2><canvas id="dial" width="900" height="300"></canvas></section></main>
+<script>
+const v=document.getElementById('v'),c=document.getElementById('c'),x=c.getContext('2d',{willReadFrequently:true}),d=document.getElementById('dial'),q=d.getContext('2d');
+let s=null,on=false,raf,pivot=null,lastSide=0,lastTime=0,start=0,max=0,periods=[],osc=0;
+function text(id,z){document.getElementById(id).textContent=z}
+function dial(angle=0){q.clearRect(0,0,d.width,d.height);let cx=d.width/2,cy=25;
+q.strokeStyle='#14213d';q.fillStyle='#14213d';q.lineWidth=3;q.beginPath();q.moveTo(cx,cy);q.lineTo(cx,275);q.stroke();
+for(let deg=-45;deg<=45;deg+=5){let r=deg*Math.PI/180,L=deg%10===0?25:14;
+let X=cx+Math.sin(r)*220,Y=cy+Math.cos(r)*220,X2=cx+Math.sin(r)*(220-L),Y2=cy+Math.cos(r)*(220-L);
+q.beginPath();q.moveTo(X,Y);q.lineTo(X2,Y2);q.stroke();if(deg%10===0){q.font='14px Arial';q.textAlign='center';q.fillText(Math.abs(deg)+'°',cx+Math.sin(r)*180,cy+Math.cos(r)*180)}}
+let r=angle*Math.PI/180;q.lineWidth=7;q.beginPath();q.moveTo(cx,cy);q.lineTo(cx+Math.sin(r)*215,cy+Math.cos(r)*215);q.stroke();q.beginPath();q.arc(cx,cy,8,0,7);q.fill()}
+dial();
+async function camera(){try{s=await navigator.mediaDevices.getUserMedia({video:true,audio:false});v.srcObject=s}catch(e){alert('Please allow camera permission in Chrome.')}} 
+function stop(){on=false;cancelAnimationFrame(raf);if(s)s.getTracks().forEach(z=>z.stop())}
+function bright(){if(v.readyState<2)return null;x.drawImage(v,0,0,c.width,c.height);let z=x.getImageData(0,0,c.width,c.height).data,Sx=0,Sy=0,n=0;
+for(let Y=30;Y<c.height-20;Y+=3)for(let X=20;X<c.width-20;X+=3){let i=(Y*c.width+X)*4,R=z[i],G=z[i+1],B=z[i+2];if(R>190&&G>150&&B<130&&R>G*1.1){Sx+=X;Sy+=Y;n++}}
+return n>30?{x:Sx/n,y:Sy/n}:null}
+function loop(){if(!on)return;let P=bright(),now=performance.now();if(P){if(!pivot)pivot=P;
+let dx=P.x-pivot.x,dy=Math.max(30,P.y-pivot.y),ang=Math.atan2(dx,dy)*180/Math.PI;max=Math.max(max,Math.abs(ang));
+text('a',ang.toFixed(1)+'°');text('m',max.toFixed(1)+'°');dial(ang);
+let side=ang>=0?1:-1;if(lastSide&&side!==lastSide&&now-lastTime>150){let dt=(now-lastTime)/1000;if(lastTime){periods.push(dt);text('p',dt.toFixed(2)+' s');text('av',(periods.reduce((a,b)=>a+b,0)/periods.length).toFixed(2)+' s')}lastTime=now;osc++;text('o',Math.floor(osc/2))}if(!lastSide)lastTime=now;lastSide=side}
+if(start)text('t',((now-start)/1000).toFixed(1)+' s');raf=requestAnimationFrame(loop)}
+document.getElementById('cam').onclick=camera;
+document.getElementById('go').onclick=()=>{if(!s){alert('Start the camera first.');return}on=true;start=performance.now();pivot=null;lastSide=0;lastTime=0;periods=[];osc=0;max=0;loop()};
+document.getElementById('stop').onclick=stop;
+document.getElementById('score').onclick=()=>{let pred=+document.getElementById('pred').value;if(!periods.length||!pred){document.getElementById('res').textContent='Run the analysis and enter your prediction first.';return}let avg=periods.reduce((a,b)=>a+b,0)/periods.length,diff=Math.abs(pred-avg);document.getElementById('res').textContent='Measured average: '+avg.toFixed(2)+' s. Difference: '+diff.toFixed(2)+' s. '+(diff<.1?'🏆 Excellent!':'Good try!')};
+</script></body></html>
